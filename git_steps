@@ -1,0 +1,34 @@
+after making changes:
+
+do
+$ git status
+to see what has changed and what needs to be added to your next commit
+
+add changes with
+$ git add <file>
+
+revert changes you made AND DID NOT ADD YET with
+$ git restore <file>
+revert changes you AND ALREADY ADDED with
+$ git restore --cached <file>
+(^ i think it tells you to do these in the output of $ git status)
+
+after adding all desired changes to the index, do
+$ git commit -m "your very meaningful message"
+
+and then
+$ git push
+
+ANY TIME YOU LOG ON AND WANT TO START WORKING ON THE PROJECT:
+PLEASE run
+$ git pull
+FIRST BEFORE YOU START MAKING CHANGES AND MAKING NEW COMMITS
+IF YOU MESS IT ALL UP DONT WORRY JUST ASK ME FOR HELP ITS NOT BAD
+
+if you want to see your current changes between the last commit and now do
+$ git diff
+
+AND LASTLY IF YOU HAVE ANY QUESTIONS ABOUT ANYTHING OR WANT TO SEE MORE OPTIONS do
+$ git help <command>
+like
+$ git help diff, or $ git help add
