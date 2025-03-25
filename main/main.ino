@@ -16,6 +16,7 @@
 
 // INCLUDES
 #include <GravityTDS.h>
+GravityTDS TDS;
 
 // GLOBALS
 const int dt = 250; // delay in ms
@@ -32,7 +33,7 @@ typedef uint8_t EMS_OptionCount;
 typedef uint8_t EMS_Pin;
 typedef uint8_t EMS_PinCount;
 
-static EMS_Time clock = 0;
+static EMS_Time clk = 0;
 
 enum EMS_DATA_TYPE{
 	EMS_DATA_TYPE_INT,
@@ -106,7 +107,7 @@ EMS_OptionCount sensorOptionCount[] = {
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
-  [EMS_SENSOR_TYPE_TDS] = 1,
+  [EMS_SENSOR_TYPE_TDS] = 2,
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -117,9 +118,9 @@ EMS_PinCount sensorPinCount[] = {
 
 struct EMS_Sensor createSensor(enum EMS_SENSOR_TYPE type){
 	struct EMS_Sensor s = {.type = type};
-	s.settings = malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
+	s.settings = (EMS_Pin*)malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
 	memset(s.settings, 0, sizeof(EMS_Option) * sensorOptionCount[type]);
-	s.pins = malloc(sizeof(EMS_Pin) * sensorPinCount[type]);
+	s.pins = (EMS_Pin*)malloc(sizeof(EMS_Pin) * sensorPinCount[type]);
 	memset(s.pins, 0, sizeof(EMS_Pin) * sensorPinCount[type]);
 	return s;
 }
@@ -173,17 +174,17 @@ bool registerDataSeries(const char* name, enum EMS_DATA_TYPE type){
 		}
 		ptr = &(*ptr)->next;
 	}
-	struct EMS_DataSeries* newSeries = malloc(sizeof(struct EMS_DataSeries));
+	struct EMS_DataSeries* newSeries = (struct EMS_DataSeries*)malloc(sizeof(struct EMS_DataSeries));
 	newSeries->name = name;
 	newSeries->type = type;
-	newSeries->array = malloc(0);
+	newSeries->array = NULL;
 	newSeries->next = NULL;
 	newSeries->arrayLen = 0;
 	*ptr = newSeries;
 	return true;
 }
 
-bool addDataToSeries(const char* series, void* data, EMS_Time clock){
+bool addDataToSeries(const char* series, void* data, EMS_Time clk){
 	struct EMS_DataSeries* s = seriesHead;
 	while(s){
 		if(strcmp(s->name, series) == 0){
@@ -199,13 +200,13 @@ bool addDataToSeries(const char* series, void* data, EMS_Time clock){
 		puts("uhhhh");
 		return false;
 	}
-	s->array = p;
+	s->array = (struct EMS_DataPoint*)p;
 	if(s->type == EMS_DATA_TYPE_INT){
 		s->array[s->arrayLen - 1].dataInt = *((EMS_Int*)data);
 	}else if(s->type == EMS_DATA_TYPE_FLOAT){
 		s->array[s->arrayLen - 1].dataFloat = *((EMS_Float*)data);
 	}
-	s->array[s->arrayLen - 1].recordedTime = clock;
+	s->array[s->arrayLen - 1].recordedTime = clk;
 	return true;
 }
 
@@ -225,7 +226,7 @@ bool addDataPointToSeries(const char* series, struct EMS_DataPoint* data){
 		puts("uhhhh");
 		return false;
 	}
-	s->array = p;8
+	s->array = (struct EMS_DataPoint*)p;
 	if(s->type == EMS_DATA_TYPE_INT){
 		data->dataInt = data->dataFloat;
 	}
@@ -283,6 +284,12 @@ static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
   }
 	d->dataInt = ppm;
 }
+static void TDSsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+  // temp = 25;
+  // TDS.setTemperature(temp);
+  // TDS.update();
+  // tdsValue = TDS.getTdsValue();
+}
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              SENSOR READING FUNCTIONS
@@ -293,13 +300,13 @@ void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_RE
 };
 
 struct EMS_DataPoint readSensor(const struct EMS_Sensor* s){
-	struct EMS_DataPoint d = {.recordedTime = ++clock};
-	readArray[s->type](s, &d, 0);
+	struct EMS_DataPoint d = {.recordedTime = ++clk};
+	readArray[s->type](s, &d, (enum EMS_READ_MODE)0);
 	return d;
 }
 
 struct EMS_DataPoint readSensorMode(const struct EMS_Sensor* s, enum EMS_READ_MODE m){
-	struct EMS_DataPoint d = {.recordedTime = ++clock};
+	struct EMS_DataPoint d = {.recordedTime = ++clk};
 	readArray[s->type](s, &d, m);
 	return d;
 }
