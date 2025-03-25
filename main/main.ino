@@ -29,7 +29,7 @@ typedef uint32_t EMS_Time;
 typedef uint8_t EMS_Option;
 typedef uint8_t EMS_OptionCount;
 
-typedef uint8_t EMS_Pin;
+typedef uint8_t EMS_PinValue;
 typedef uint8_t EMS_PinCount;
 
 static EMS_Time clock = 0;
@@ -37,11 +37,6 @@ static EMS_Time clock = 0;
 enum EMS_DATA_TYPE{
 	EMS_DATA_TYPE_INT,
 	EMS_DATA_TYPE_FLOAT
-};
-
-size_t typeSizes[] = {
-	[EMS_DATA_TYPE_INT] = sizeof(EMS_Int),
-	[EMS_DATA_TYPE_FLOAT] = sizeof(EMS_Float),
 };
 
 struct EMS_DataPoint{
@@ -62,7 +57,12 @@ struct EMS_DataSeries{
 
 enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
-  EMS_SENSOR_TYPE_TDS,
+	EMS_SENSOR_TYPE_TDS,
+};
+
+struct EMS_Pin{
+	EMS_PinValue pin;
+	bool isAnalog;
 };
 
 struct EMS_Sensor{
@@ -70,11 +70,13 @@ struct EMS_Sensor{
 	EMS_Option* settings;
 	EMS_Pin* pins;
 };
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              SENSOR SETUP
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 enum EMS_SETTING{
 	EMS_SETTING_NULL = 0,
 
@@ -90,7 +92,8 @@ enum EMS_PIN{
 	EMS_PIN_NULL = 0,
 
 	EMS_PIN_CO2_MAIN = 1,
-  EMS_PIN_TDS_MAIN = 1,
+	
+	EMS_PIN_TDS_MAIN = 1,
 };
 
 enum EMS_READ_MODE{
@@ -99,14 +102,13 @@ enum EMS_READ_MODE{
 };
 
 EMS_OptionCount sensorOptionCount[] = {
-	// [EMS_SENSOR_TYPE_PH] = 1,
-  [EMS_SENSOR_TYPE_CO2] = 0,
-  [EMS_SENSOR_TYPE_TDS] = 0,
+	[EMS_SENSOR_TYPE_CO2] = 0,
+	[EMS_SENSOR_TYPE_TDS] = 0,
 };
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
-  [EMS_SENSOR_TYPE_TDS] = 1,
+	[EMS_SENSOR_TYPE_TDS] = 1,
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -119,8 +121,8 @@ struct EMS_Sensor createSensor(enum EMS_SENSOR_TYPE type){
 	struct EMS_Sensor s = {.type = type};
 	s.settings = malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
 	memset(s.settings, 0, sizeof(EMS_Option) * sensorOptionCount[type]);
-	s.pins = malloc(sizeof(EMS_Pin) * sensorPinCount[type]);
-	memset(s.pins, 0, sizeof(EMS_Pin) * sensorPinCount[type]);
+	s.pins = malloc(sizeof(struct EMS_Pin) * sensorPinCount[type]);
+	memset(s.pins, 0, sizeof(struct EMS_Pin) * sensorPinCount[type]);
 	return s;
 }
 
@@ -153,13 +155,13 @@ EMS_Option getSensorSetting(const struct EMS_Sensor* sensor, enum EMS_SETTING se
 	return sensor->settings[setting - 1];
 }
 
-EMS_Pin setSensorPin(struct EMS_Sensor* sensor, enum EMS_PIN pin, EMS_Pin v){
+EMS_PinValue setSensorPin(struct EMS_Sensor* sensor, enum EMS_PIN pin, EMS_PinValue v){
 	EMS_PinCount c = sensorPinCount[sensor->type];
 	if(pin > c){
 		return EMS_PIN_NULL;
 	}
-	EMS_Pin old = sensor->pins[pin - 1];
-	sensor->pins[pin - 1] = v;
+	EMS_PinValue old = sensor->pins[pin - 1].pin;
+	sensor->pins[pin - 1].pin = v;
 	return old;
 }
 
@@ -225,7 +227,7 @@ bool addDataPointToSeries(const char* series, struct EMS_DataPoint* data){
 		puts("uhhhh");
 		return false;
 	}
-	s->array = p;8
+	s->array = p;
 	if(s->type == EMS_DATA_TYPE_INT){
 		data->dataInt = data->dataFloat;
 	}
@@ -252,9 +254,13 @@ void printAllData(void){
 	}
 }
 
-static float readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
-  return digitalRead(s->pins[pin-1]);
+static int readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
+	if(s->pins[pin - 1].isAnalog){
+		return analogRead(s->pins[pin - 1].pin);
+	}
+	return digitalRead(s->pins[pin - 1.pin]);
 }
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              SENSOR FUNCTIONS
@@ -263,31 +269,33 @@ static float readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
 
 static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int ValorActual = readPin(s, EMS_PIN_CO2_MAIN);
-  int ValorAnterior = LOW;
-  long tiempoenHIGH, tiempoenLOW, h, l, ppm;
-  long tt = millis();
-  if(ValorActual == HIGH){
-    if(ValorActual != ValorAnterior){
-      h = tt;
-      tiempoenLOW = h- l;
-      ValorAnterior = ValorActual;
-    }
-  }
-  else{
-    if(ValorActual != ValorAnterior){
-      l = tt;
-      tiempoenHIGH = l - h;
-      ValorAnterior = ValorActual;
-      ppm = 5000 * (tiempoenHIGH - 2)/(tiempoenHIGH + tiempoenLOW - 4);
-    }
-  }
+	int ValorAnterior = LOW;
+	long tiempoenHIGH, tiempoenLOW, h, l, ppm;
+	long tt = millis();
+	if(ValorActual == HIGH){
+		if(ValorActual != ValorAnterior){
+			h = tt;
+			tiempoenLOW = h- l;
+			ValorAnterior = ValorActual;
+		}
+	}
+	else{
+		if(ValorActual != ValorAnterior){
+			l = tt;
+			tiempoenHIGH = l - h;
+			ValorAnterior = ValorActual;
+			ppm = 5000 * (tiempoenHIGH - 2) / (tiempoenHIGH + tiempoenLOW - 4);
+		}
+	}
 	d->dataInt = ppm;
 }
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              SENSOR READING FUNCTIONS
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_READ_MODE) = {
 	[EMS_SENSOR_TYPE_CO2] = &CO2sensorread,
 };
@@ -303,32 +311,37 @@ struct EMS_DataPoint readSensorMode(const struct EMS_Sensor* s, enum EMS_READ_MO
 	readArray[s->type](s, &d, m);
 	return d;
 }
+
 // SETUP STRUCT FOR SENSOR
 struct EMS_Sensor CO2sensor;
 struct EMS_Sensor TDSsensor;
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              SETUP
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 void setup(){
-  // create sensor
-  CO2sensor = createSensor(EMS_SENSOR_TYPE_CO2);
-  TDSsensor = createSensor(EMS_SENSOR_TYPE_TDS);
+	// create sensor
+	CO2sensor = createSensor(EMS_SENSOR_TYPE_CO2);
+	TDSsensor = createSensor(EMS_SENSOR_TYPE_TDS);
 
-  // set sensor pin
+	// set sensor pin
 	setSensorPin(&CO2sensor, EMS_PIN_CO2_MAIN, 2);
-  setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0);
+	setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0);
 
-  // set data series
-  registerDataSeries("CO2ppm_int", EMS_DATA_TYPE_INT);
-  registerDataSeries("TDSppm_int", EMS_DATA_TYPE_INT);
+	// set data series
+	registerDataSeries("CO2ppm_int", EMS_DATA_TYPE_INT);
+	registerDataSeries("TDSppm_int", EMS_DATA_TYPE_INT);
 }
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              LOOP
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 void loop(){
 	static struct EMS_DataPoint data;
 	data = readSensor(&CO2sensor);
