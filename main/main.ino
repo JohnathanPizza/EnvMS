@@ -1,9 +1,26 @@
-// includes
+// Environmental Monitoring System
+//
+// Team: EcoSense
+// Authors: Connor Bremner, Zahid Conteh, Brock Drengenberg, Daniel Langdon, Anthony Lu, Gabe De Matte, Jorge Sierra, Timothy Strawn
+//
+// Function: This code controls the environmental monitoring system by defining sensors with structs and functions.
+//           Then calculates a data point for each sensor and formats it into a table
+//           This tabel is sent out to a public SQL server
+//
+// Use Instructions: In sensor setup define sensor, option count, pin count
+//                   In sensor functions include function for specific sensor
+//                   In setup and loop follow example sensors
 
-// globals
+
+
+
+// INCLUDES
+#include <GravityTDS.h>
+
+// GLOBALS
 const int dt = 250; // delay in ms
 
-// naming variable types
+// NAMING VARIABLE TYPES
 typedef int32_t EMS_Int;
 typedef float EMS_Float;
 
@@ -45,6 +62,7 @@ struct EMS_DataSeries{
 
 enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
+  EMS_SENSOR_TYPE_TDS,
 };
 
 struct EMS_Sensor{
@@ -52,7 +70,11 @@ struct EMS_Sensor{
 	EMS_Option* settings;
 	EMS_Pin* pins;
 };
-
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+//              SENSOR SETUP
+//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 enum EMS_SETTING{
 	EMS_SETTING_NULL = 0,
 
@@ -68,7 +90,7 @@ enum EMS_PIN{
 	EMS_PIN_NULL = 0,
 
 	EMS_PIN_CO2_MAIN = 1,
-
+  EMS_PIN_TDS_MAIN = 1,
 };
 
 enum EMS_READ_MODE{
@@ -79,11 +101,19 @@ enum EMS_READ_MODE{
 EMS_OptionCount sensorOptionCount[] = {
 	// [EMS_SENSOR_TYPE_PH] = 1,
   [EMS_SENSOR_TYPE_CO2] = 0,
+  [EMS_SENSOR_TYPE_TDS] = 0,
 };
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
+  [EMS_SENSOR_TYPE_TDS] = 1,
 };
+
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+//              MAIN FUNCTIONS
+//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 struct EMS_Sensor createSensor(enum EMS_SENSOR_TYPE type){
 	struct EMS_Sensor s = {.type = type};
@@ -225,9 +255,12 @@ void printAllData(void){
 static float readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
   return digitalRead(s->pins[pin-1]);
 }
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+//              SENSOR FUNCTIONS
+//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// SENSOR FUNCTIONs
-// SENSOR FUNCTIONS
 static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int ValorActual = readPin(s, EMS_PIN_CO2_MAIN);
   int ValorAnterior = LOW;
@@ -250,7 +283,11 @@ static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
   }
 	d->dataInt = ppm;
 }
-
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+//              SENSOR READING FUNCTIONS
+//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_READ_MODE) = {
 	[EMS_SENSOR_TYPE_CO2] = &CO2sensorread,
 };
@@ -266,17 +303,38 @@ struct EMS_DataPoint readSensorMode(const struct EMS_Sensor* s, enum EMS_READ_MO
 	readArray[s->type](s, &d, m);
 	return d;
 }
-
+// SETUP STRUCT FOR SENSOR
 struct EMS_Sensor CO2sensor;
-
+struct EMS_Sensor TDSsensor;
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+//              SETUP
+//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup(){
+  // create sensor
   CO2sensor = createSensor(EMS_SENSOR_TYPE_CO2);
+  TDSsensor = createSensor(EMS_SENSOR_TYPE_TDS);
+
+  // set sensor pin
 	setSensorPin(&CO2sensor, EMS_PIN_CO2_MAIN, 2);
+  setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0);
+
+  // set data series
   registerDataSeries("CO2ppm_int", EMS_DATA_TYPE_INT);
+  registerDataSeries("TDSppm_int", EMS_DATA_TYPE_INT);
 }
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//
+//              LOOP
+//
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void loop(){
   static struct EMS_DataPoint data;
   data = readSensor(&CO2sensor);
   addDataPointToSeries("CO2ppm_int", &data);
+  delay(dt);
+  data = readSensor(&TDSsensor);
+  addDataPointToSeries("TDSppm_int", &data);
   delay(dt);
 }
