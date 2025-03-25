@@ -17,8 +17,8 @@
 // INCLUDES
 #include <GravityTDS.h>
 
-// GLOBALS
-const int dt = 250; // delay in ms
+// MACROS
+#define DELTA_MS	250
 
 // NAMING VARIABLE TYPES
 typedef int32_t EMS_Int;
@@ -330,11 +330,10 @@ void setup(){
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void loop(){
-  static struct EMS_DataPoint data;
-  data = readSensor(&CO2sensor);
-  addDataPointToSeries("CO2ppm_int", &data);
-  delay(dt);
-  data = readSensor(&TDSsensor);
-  addDataPointToSeries("TDSppm_int", &data);
-  delay(dt);
+	static struct EMS_DataPoint data;
+	data = readSensor(&CO2sensor);
+	addDataPointToSeries("CO2ppm_int", &data);
+	data = readSensor(&TDSsensor);
+	addDataPointToSeries("TDSppm_int", &data);
+	delay(DELTA_MS);
 }
