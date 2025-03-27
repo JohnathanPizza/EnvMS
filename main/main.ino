@@ -65,7 +65,11 @@ struct EMS_Pin{
 	EMS_PinValue pin;
 	bool isAnalog;
 };
-
+enum EMS_SENSOR_TYPE{
+	EMS_SENSOR_TYPE_CO2,
+	EMS_SENSOR_TYPE_TDS,
+	EMS_SENSOR_TYPE_CO,
+};
 struct EMS_Sensor{
 	enum EMS_SENSOR_TYPE type;
 	EMS_Option* settings;
@@ -78,6 +82,7 @@ struct EMS_Sensor{
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+<<<<<<< Updated upstream
 enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
 	EMS_SENSOR_TYPE_TDS,
@@ -85,6 +90,8 @@ enum EMS_SENSOR_TYPE{
   EMS_SENSOR_TYPE_MQ5,
 };
 
+=======
+>>>>>>> Stashed changes
 enum EMS_SETTING{
 	EMS_SETTING_NULL = 0,
 
@@ -122,7 +129,7 @@ EMS_OptionCount sensorOptionCount[] = {
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
-	[EMS_SENSOR_TYPE_TDS] = 2,
+	[EMS_SENSOR_TYPE_TDS] = 1,
 	[EMS_SENSOR_TYPE_CO] = 1,
   [EMS_SENSOR_TYPE_MQ5] = 1,
 };
@@ -135,7 +142,7 @@ EMS_PinCount sensorPinCount[] = {
 
 struct EMS_Sensor createSensor(enum EMS_SENSOR_TYPE type){
 	struct EMS_Sensor s = {.type = type};
-	s.settings = (EMS_Pin*)malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
+	s.settings = (EMS_Option*)malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
 	memset(s.settings, 0, sizeof(EMS_Option) * sensorOptionCount[type]);
 	s.pins = (EMS_Pin*)malloc(sizeof(struct EMS_Pin) * sensorPinCount[type]);
 	memset(s.pins, 0, sizeof(struct EMS_Pin) * sensorPinCount[type]);
@@ -257,14 +264,14 @@ void printAllData(void){
 	while(s){
 		puts(s->name);
 		if(s->type == EMS_DATA_TYPE_INT){
-			puts("ints");
+			//puts("ints");
 			for(size_t idx = 0; idx < s->arrayLen; ++idx){
-				printf("%" PRId32 " @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataInt, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+				Serial.printf("%" PRId32 " @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataInt, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
 			}
 		}else if(s->type == EMS_DATA_TYPE_FLOAT){
-			puts("floats");
+			//puts("floats");
 			for(size_t idx = 0; idx < s->arrayLen; ++idx){
-				printf("%f @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataFloat, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+				Serial.printf("%f @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataFloat, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
 			}
 		}
 		s = s->next;
@@ -275,7 +282,7 @@ static int readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
 	if(s->pins[pin - 1].isAnalog){
 		return analogRead(s->pins[pin - 1].pin);
 	}
-	return digitalRead(s->pins[pin - 1.pin]);
+	  return digitalRead(s->pins[pin - 1].pin);
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -302,7 +309,7 @@ static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
 			ppm = 5000 * (tiempoenHIGH - 2) / (tiempoenHIGH + tiempoenLOW - 4);
 		}
 	}
-	//Serial.println(ppm);
+	Serial.println("here");
 	d->dataInt = ppm;
 }
 
@@ -358,6 +365,7 @@ static void MQ5sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
 
 void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_READ_MODE) = {
 	[EMS_SENSOR_TYPE_CO2] = &CO2sensorread,
+  [EMS_SENSOR_TYPE_TDS] = &TDSsensorread,
 	[EMS_SENSOR_TYPE_CO] = &COsensorread,
 };
 
@@ -386,7 +394,7 @@ struct EMS_SENSOR MQ5sensor;
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void setup(){
-  	Serial.begin(115200);
+  	Serial.begin(9600);
   	while(!Serial){
   		Serial.println();
 	}
@@ -430,9 +438,9 @@ void loop(){
 	data = readSensor(&CO2sensor);
 	addDataPointToSeries("CO2ppm_int", &data);
 
-  	// TDS
-  	data = readSensor(&TDSsensor);
-  	addDataPointToSeries("TDSppm_int", &data);
+  // TDS
+  data = readSensor(&TDSsensor);
+  addDataPointToSeries("TDSppm_int", &data);
 	
 	// CO
 	data = readSensor(&COsensor);
