@@ -13,7 +13,6 @@
 
 
 
-
 // INCLUDES
 #include <GravityTDS.h>
 GravityTDS TDS;
@@ -261,7 +260,6 @@ static float readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
 //              SENSOR FUNCTIONS
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int ValorActual = readPin(s, EMS_PIN_CO2_MAIN);
   int ValorAnterior = LOW;
@@ -282,17 +280,19 @@ static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
       ppm = 5000 * (tiempoenHIGH - 2)/(tiempoenHIGH + tiempoenLOW - 4);
     }
   }
+  //Serial.println(ppm);
 	d->dataInt = ppm;
 }
 static void TDSsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
-  // temp = 25;
-  // TDS.setTemperature(temp);
-  // TDS.update();
-  // tdsValue = TDS.getTdsValue();
+  int temp = 25;
+  TDS.setTemperature(temp);
+  TDS.update();
+  int tdsValue = TDS.getTdsValue(); // TDS levels in ppm
+  d->dataInt = tdsValue;
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
-//              SENSOR READING FUNCTIONS
+//              DATA READING FUNCTIONS
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_READ_MODE) = {
@@ -319,17 +319,23 @@ struct EMS_Sensor TDSsensor;
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup(){
-  // create sensor
+  Serial.begin(115200);
+  while(!Serial)
+  Serial.println();
+
+  // CO2
   CO2sensor = createSensor(EMS_SENSOR_TYPE_CO2);
-  TDSsensor = createSensor(EMS_SENSOR_TYPE_TDS);
-
-  // set sensor pin
-	setSensorPin(&CO2sensor, EMS_PIN_CO2_MAIN, 2);
-  setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0);
-
-  // set data series
+  setSensorPin(&CO2sensor, EMS_PIN_CO2_MAIN, 2);
   registerDataSeries("CO2ppm_int", EMS_DATA_TYPE_INT);
+
+  // TDS
+  TDSsensor = createSensor(EMS_SENSOR_TYPE_TDS);
+  setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0);
   registerDataSeries("TDSppm_int", EMS_DATA_TYPE_INT);
+  TDS.setPin(A0);
+  TDS.setAref(5.0);
+  TDS.setAdcRange(1024);
+  TDS.begin();
 }
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -338,10 +344,18 @@ void setup(){
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void loop(){
   static struct EMS_DataPoint data;
+
+  // CO2
   data = readSensor(&CO2sensor);
   addDataPointToSeries("CO2ppm_int", &data);
+
   delay(dt);
+  
+  // TDS
   data = readSensor(&TDSsensor);
   addDataPointToSeries("TDSppm_int", &data);
+
+  printAllData();
+
   delay(dt);
 }
