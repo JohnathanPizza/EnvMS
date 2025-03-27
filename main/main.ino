@@ -17,6 +17,12 @@
 #include <GravityTDS.h>
 GravityTDS TDS;
 
+// MQ-5 Parameters
+#define RL 1000  // Load resistance in ohms (1kΩ)
+#define RO_CLEAN_AIR_FACTOR 6.5  // Clean air factor for MQ-5
+static float Ro = 0;
+ 
+
 // MACROS
 #define DELTA_MS	250
 
@@ -59,7 +65,11 @@ struct EMS_Pin{
 	EMS_PinValue pin;
 	bool isAnalog;
 };
-
+enum EMS_SENSOR_TYPE{
+	EMS_SENSOR_TYPE_CO2,
+	EMS_SENSOR_TYPE_TDS,
+	EMS_SENSOR_TYPE_CO,
+};
 struct EMS_Sensor{
 	enum EMS_SENSOR_TYPE type;
 	EMS_Option* settings;
@@ -76,6 +86,7 @@ enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
 	EMS_SENSOR_TYPE_TDS,
 	EMS_SENSOR_TYPE_CO,
+  EMS_SENSOR_TYPE_MQ5,
 };
 
 enum EMS_SETTING{
@@ -97,6 +108,8 @@ enum EMS_PIN{
 	EMS_PIN_TDS_MAIN = 1,
 
 	EMS_PIN_CO_MAIN = 1,
+
+  EMS_PIN_MQ5_MAIN = 1,
 };
 
 enum EMS_READ_MODE{
@@ -108,12 +121,14 @@ EMS_OptionCount sensorOptionCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 0,
 	[EMS_SENSOR_TYPE_TDS] = 0,
 	[EMS_SENSOR_TYPE_CO] = 0,
+  [EMS_SENSOR_TYPE_MQ5] = 0,
 };
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
-	[EMS_SENSOR_TYPE_TDS] = 2,
+	[EMS_SENSOR_TYPE_TDS] = 1,
 	[EMS_SENSOR_TYPE_CO] = 1,
+  [EMS_SENSOR_TYPE_MQ5] = 1,
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -124,7 +139,7 @@ EMS_PinCount sensorPinCount[] = {
 
 struct EMS_Sensor createSensor(enum EMS_SENSOR_TYPE type){
 	struct EMS_Sensor s = {.type = type};
-	s.settings = (EMS_Pin*)malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
+	s.settings = (EMS_Option*)malloc(sizeof(EMS_Option) * sensorOptionCount[type]);
 	memset(s.settings, 0, sizeof(EMS_Option) * sensorOptionCount[type]);
 	s.pins = (EMS_Pin*)malloc(sizeof(struct EMS_Pin) * sensorPinCount[type]);
 	memset(s.pins, 0, sizeof(struct EMS_Pin) * sensorPinCount[type]);
@@ -160,13 +175,14 @@ EMS_Option getSensorSetting(const struct EMS_Sensor* sensor, enum EMS_SETTING se
 	return sensor->settings[setting - 1];
 }
 
-EMS_PinValue setSensorPin(struct EMS_Sensor* sensor, enum EMS_PIN pin, EMS_PinValue v){
+EMS_PinValue setSensorPin(struct EMS_Sensor* sensor, enum EMS_PIN pin, EMS_PinValue v, bool isAnalog){
 	EMS_PinCount c = sensorPinCount[sensor->type];
 	if(pin > c){
 		return EMS_PIN_NULL;
 	}
 	EMS_PinValue old = sensor->pins[pin - 1].pin;
 	sensor->pins[pin - 1].pin = v;
+	sensor->pins[pin - 1].isAnalog = isAnalog;
 	return old;
 }
 
@@ -245,14 +261,14 @@ void printAllData(void){
 	while(s){
 		puts(s->name);
 		if(s->type == EMS_DATA_TYPE_INT){
-			puts("ints");
+			//puts("ints");
 			for(size_t idx = 0; idx < s->arrayLen; ++idx){
-				printf("%" PRId32 " @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataInt, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+				Serial.printf("%" PRId32 " @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataInt, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
 			}
 		}else if(s->type == EMS_DATA_TYPE_FLOAT){
-			puts("floats");
+			//puts("floats");
 			for(size_t idx = 0; idx < s->arrayLen; ++idx){
-				printf("%f @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataFloat, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+				Serial.printf("%f @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataFloat, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
 			}
 		}
 		s = s->next;
@@ -263,7 +279,7 @@ static int readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
 	if(s->pins[pin - 1].isAnalog){
 		return analogRead(s->pins[pin - 1].pin);
 	}
-	return digitalRead(s->pins[pin - 1.pin]);
+	  return digitalRead(s->pins[pin - 1].pin);
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -273,7 +289,6 @@ static int readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int ValorActual = readPin(s, EMS_PIN_CO2_MAIN);
-<<<<<<< HEAD
 	int ValorAnterior = LOW;
 	long tiempoenHIGH, tiempoenLOW, h, l, ppm;
 	long tt = millis();
@@ -291,7 +306,7 @@ static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
 			ppm = 5000 * (tiempoenHIGH - 2) / (tiempoenHIGH + tiempoenLOW - 4);
 		}
 	}
-	//Serial.println(ppm);
+	Serial.println("here");
 	d->dataInt = ppm;
 }
 
@@ -308,6 +323,37 @@ static void COsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, en
 	d->dataInt = val;
 }
 
+// -------------------------------- MQ-5 sensor functions -----------------------------------
+// MQ-5 Sensor Calibrate Function
+float calibrateMQ5Sensor() {
+   float val = 0;
+   for (int i = 0; i < 100; i++) {
+     val += getMQ5SensorResistance(analogRead(EMS_PIN_MQ5_MAIN));
+     delay(50);
+   }
+   val = val / 100.0;
+   return val / RO_CLEAN_AIR_FACTOR;
+}
+// Function to get the MQ-5 sensor resistance
+float getMQ5SensorResistance(int raw_adc) {
+  return ((1023.0 * RL) / raw_adc) - RL;
+}
+
+// Function to convert raw MQ-5 sensor value to ppm
+float getMQ5PPM(int raw_adc, float Ro) {
+  float Rs = getMQ5SensorResistance(raw_adc);
+  float ratio = Rs / Ro;
+  return 200 * pow(ratio, -1.5);  // Example calculation (adjust based on empirical data)
+}
+// MQ-5 Sensor Read 
+static void MQ5sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+  // For MQ-5 sensor: Get raw adc and convert to ppm
+  int raw_adc = analogRead(EMS_PIN_MQ5_MAIN);
+  float ppm = getMQ5PPM(raw_adc, Ro);
+  
+	d->dataInt = ppm;
+}
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              DATA READING FUNCTIONS
@@ -316,6 +362,7 @@ static void COsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, en
 
 void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_READ_MODE) = {
 	[EMS_SENSOR_TYPE_CO2] = &CO2sensorread,
+  [EMS_SENSOR_TYPE_TDS] = &TDSsensorread,
 	[EMS_SENSOR_TYPE_CO] = &COsensorread,
 };
 
@@ -335,6 +382,7 @@ struct EMS_DataPoint readSensorMode(const struct EMS_Sensor* s, enum EMS_READ_MO
 struct EMS_Sensor CO2sensor;
 struct EMS_Sensor TDSsensor;
 struct EMS_Sensor COsensor;
+struct EMS_SENSOR MQ5sensor;
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -343,19 +391,19 @@ struct EMS_Sensor COsensor;
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void setup(){
-  	Serial.begin(115200);
+  	Serial.begin(9600);
   	while(!Serial){
   		Serial.println();
 	}
 
 	// CO2
 	CO2sensor = createSensor(EMS_SENSOR_TYPE_CO2);
-	setSensorPin(&CO2sensor, EMS_PIN_CO2_MAIN, 2);
+	setSensorPin(&CO2sensor, EMS_PIN_CO2_MAIN, 2, false);
 	registerDataSeries("CO2ppm_int", EMS_DATA_TYPE_INT);
 
 	// TDS
 	TDSsensor = createSensor(EMS_SENSOR_TYPE_TDS);
-	setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0);
+	setSensorPin(&TDSsensor, EMS_PIN_TDS_MAIN, A0, true);
 	registerDataSeries("TDSppm_int", EMS_DATA_TYPE_INT);
 	TDS.setPin(A0);
 	TDS.setAref(5.0);
@@ -364,8 +412,14 @@ void setup(){
 	
 	// CO
 	COsensor = createSensor(EMS_SENSOR_TYPE_CO);
-	setSensorPin(&COsensor, EMS_PIN_CO_MAIN, A1);
+	setSensorPin(&COsensor, EMS_PIN_CO_MAIN, A1, true);
 	registerDataSeries("COppm_init", EMS_DATA_TYPE_INT);
+
+  // MQ-5
+  MQ5sensor = createSensor(EMS_SENSOR_TYPE_MQ5);
+  setSensorPin(&MQ5sensor, EMS_PIN_MQ5_MAIN, A0, true);
+  registerDataSeries("MQ5ppm_int", EMS_DATA_TYPE_INT);
+  Ro = calibrateMQ5Sensor();
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -381,13 +435,17 @@ void loop(){
 	data = readSensor(&CO2sensor);
 	addDataPointToSeries("CO2ppm_int", &data);
 
-  	// TDS
-  	data = readSensor(&TDSsensor);
-  	addDataPointToSeries("TDSppm_int", &data);
+  // TDS
+  data = readSensor(&TDSsensor);
+  addDataPointToSeries("TDSppm_int", &data);
 	
 	// CO
 	data = readSensor(&COsensor);
 	addDataPointToSeries("COppm_int", &data);
+  
+  // MQ-5
+  data = readSensor(&MQ5sensor):
+  addDataPointToSeries("MQ5ppm_int", &data);
 	
 	printAllData();
 	
