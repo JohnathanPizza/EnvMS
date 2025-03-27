@@ -17,6 +17,12 @@
 #include <GravityTDS.h>
 GravityTDS TDS;
 
+// MQ-5 Parameters
+#define RL 1000  // Load resistance in ohms (1kΩ)
+#define RO_CLEAN_AIR_FACTOR 6.5  // Clean air factor for MQ-5
+static float Ro = 0;
+ 
+
 // MACROS
 #define DELTA_MS	250
 
@@ -76,6 +82,7 @@ enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
 	EMS_SENSOR_TYPE_TDS,
 	EMS_SENSOR_TYPE_CO,
+  EMS_SENSOR_TYPE_MQ5,
 };
 
 enum EMS_SETTING{
@@ -97,6 +104,8 @@ enum EMS_PIN{
 	EMS_PIN_TDS_MAIN = 1,
 
 	EMS_PIN_CO_MAIN = 1,
+
+  EMS_PIN_MQ5_MAIN = 1,
 };
 
 enum EMS_READ_MODE{
@@ -108,12 +117,14 @@ EMS_OptionCount sensorOptionCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 0,
 	[EMS_SENSOR_TYPE_TDS] = 0,
 	[EMS_SENSOR_TYPE_CO] = 0,
+  [EMS_SENSOR_TYPE_MQ5] = 0,
 };
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
 	[EMS_SENSOR_TYPE_TDS] = 2,
 	[EMS_SENSOR_TYPE_CO] = 1,
+  [EMS_SENSOR_TYPE_MQ5] = 1,
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -308,6 +319,37 @@ static void COsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, en
 	d->dataInt = val;
 }
 
+// -------------------------------- MQ-5 sensor functions -----------------------------------
+// MQ-5 Sensor Calibrate Function
+float calibrateMQ5Sensor() {
+   float val = 0;
+   for (int i = 0; i < 100; i++) {
+     val += getMQ5SensorResistance(analogRead(EMS_PIN_MQ5_MAIN));
+     delay(50);
+   }
+   val = val / 100.0;
+   return val / RO_CLEAN_AIR_FACTOR;
+}
+// Function to get the MQ-5 sensor resistance
+float getMQ5SensorResistance(int raw_adc) {
+  return ((1023.0 * RL) / raw_adc) - RL;
+}
+
+// Function to convert raw MQ-5 sensor value to ppm
+float getMQ5PPM(int raw_adc, float Ro) {
+  float Rs = getMQ5SensorResistance(raw_adc);
+  float ratio = Rs / Ro;
+  return 200 * pow(ratio, -1.5);  // Example calculation (adjust based on empirical data)
+}
+// MQ-5 Sensor Read 
+static void MQ5sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+  // For MQ-5 sensor: Get raw adc and convert to ppm
+  int raw_adc = analogRead(EMS_PIN_MQ5_MAIN);
+  float ppm = getMQ5PPM(raw_adc, Ro);
+  
+	d->dataInt = ppm;
+}
+
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 //              DATA READING FUNCTIONS
@@ -335,6 +377,7 @@ struct EMS_DataPoint readSensorMode(const struct EMS_Sensor* s, enum EMS_READ_MO
 struct EMS_Sensor CO2sensor;
 struct EMS_Sensor TDSsensor;
 struct EMS_Sensor COsensor;
+struct EMS_SENSOR MQ5sensor;
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -366,6 +409,12 @@ void setup(){
 	COsensor = createSensor(EMS_SENSOR_TYPE_CO);
 	setSensorPin(&COsensor, EMS_PIN_CO_MAIN, A1, true);
 	registerDataSeries("COppm_init", EMS_DATA_TYPE_INT);
+
+  // MQ-5
+  MQ5sensor = createSensor(EMS_SENSOR_TYPE_MQ5);
+  setSensorPin(&MQ5sensor, EMS_PIN_MQ5_MAIN, A0, true);
+  registerDataSeries("MQ5ppm_int", EMS_DATA_TYPE_INT);
+  Ro = calibrateMQ5Sensor();
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -388,6 +437,10 @@ void loop(){
 	// CO
 	data = readSensor(&COsensor);
 	addDataPointToSeries("COppm_int", &data);
+
+  	// MQ-5
+  	data = readSensor(&MQ5sensor):
+  	addDataPointToSeries("MQ5ppm_int", &data);
 	
 	printAllData();
 	
