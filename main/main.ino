@@ -69,6 +69,7 @@ enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
 	EMS_SENSOR_TYPE_TDS,
 	EMS_SENSOR_TYPE_CO,
+  EMS_SENSOR_TYPE_MQ5,
 };
 struct EMS_Sensor{
 	enum EMS_SENSOR_TYPE type;
@@ -81,13 +82,6 @@ struct EMS_Sensor{
 //              SENSOR SETUP
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-enum EMS_SENSOR_TYPE{
-	EMS_SENSOR_TYPE_CO2,
-	EMS_SENSOR_TYPE_TDS,
-	EMS_SENSOR_TYPE_CO,
-  EMS_SENSOR_TYPE_MQ5,
-};
 
 enum EMS_SETTING{
 	EMS_SETTING_NULL = 0,
@@ -382,7 +376,7 @@ struct EMS_DataPoint readSensorMode(const struct EMS_Sensor* s, enum EMS_READ_MO
 struct EMS_Sensor CO2sensor;
 struct EMS_Sensor TDSsensor;
 struct EMS_Sensor COsensor;
-struct EMS_SENSOR MQ5sensor;
+struct EMS_Sensor MQ5sensor;
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -444,7 +438,7 @@ void loop(){
 	addDataPointToSeries("COppm_int", &data);
   
   // MQ-5
-  data = readSensor(&MQ5sensor):
+  data = readSensor(&MQ5sensor);
   addDataPointToSeries("MQ5ppm_int", &data);
 	
 	printAllData();
