@@ -15,14 +15,13 @@
 
 // INCLUDES
 #include <GravityTDS.h>
-GravityTDS TDS;
+#include "DFRobot_OzoneSensor.h"
 
 // MQ-5 Parameters
 #define RL 1000  // Load resistance in ohms (1kΩ)
 #define RO_CLEAN_AIR_FACTOR 6.5  // Clean air factor for MQ-5
 static float Ro = 0;
  
-
 // MACROS
 #define DELTA_MS	250
 
@@ -39,6 +38,8 @@ typedef uint8_t EMS_PinValue;
 typedef uint8_t EMS_PinCount;
 
 static EMS_Time clk = 0;
+static GravityTDS TDS;
+static DFRobot_OzoneSensor oz;
 
 enum EMS_DATA_TYPE{
 	EMS_DATA_TYPE_INT,
@@ -69,7 +70,8 @@ enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO2,
 	EMS_SENSOR_TYPE_TDS,
 	EMS_SENSOR_TYPE_CO,
-  EMS_SENSOR_TYPE_MQ5,
+	EMS_SENSOR_TYPE_MQ5,
+	EMS_SENSOR_TYPE_OZONE,
 };
 struct EMS_Sensor{
 	enum EMS_SENSOR_TYPE type;
@@ -103,7 +105,7 @@ enum EMS_PIN{
 
 	EMS_PIN_CO_MAIN = 1,
 
-  EMS_PIN_MQ5_MAIN = 1,
+	EMS_PIN_MQ5_MAIN = 1,
 };
 
 enum EMS_READ_MODE{
@@ -115,14 +117,16 @@ EMS_OptionCount sensorOptionCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 0,
 	[EMS_SENSOR_TYPE_TDS] = 0,
 	[EMS_SENSOR_TYPE_CO] = 0,
-  [EMS_SENSOR_TYPE_MQ5] = 0,
+	[EMS_SENSOR_TYPE_MQ5] = 0,
+	[EMS_SENSOR_TYPE_OZONE] = 0,
 };
 
 EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO2] = 1,
 	[EMS_SENSOR_TYPE_TDS] = 1,
 	[EMS_SENSOR_TYPE_CO] = 1,
-  [EMS_SENSOR_TYPE_MQ5] = 1,
+	[EMS_SENSOR_TYPE_MQ5] = 1,
+	[EMS_SENSOR_TYPE_OZONE] = 1,
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -281,7 +285,8 @@ static int readPin(const struct EMS_Sensor* s, enum EMS_PIN pin){
 //              SENSOR FUNCTIONS
 //
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+
+static void CO2SensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int ValorActual = readPin(s, EMS_PIN_CO2_MAIN);
 	int ValorAnterior = LOW;
 	long tiempoenHIGH, tiempoenLOW, h, l, ppm;
@@ -304,7 +309,7 @@ static void CO2sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
 	d->dataInt = ppm;
 }
 
-static void TDSsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+static void TDSSensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int temp = 25;
 	TDS.setTemperature(temp);
 	TDS.update();
@@ -312,9 +317,14 @@ static void TDSsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
 	d->dataInt = tdsValue;
 }
 
-static void COsensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+static void COSensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
 	int val = readPin(s, EMS_PIN_CO_MAIN);
 	d->dataInt = val;
+}
+
+static void OzoneSensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
+	int concentration = (int)oz.ReadOzoneData(20);
+	d->dataInt = concentration;
 }
 
 // -------------------------------- MQ-5 sensor functions -----------------------------------
@@ -355,9 +365,9 @@ static void MQ5sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_READ_MODE) = {
-	[EMS_SENSOR_TYPE_CO2] = &CO2sensorread,
-  [EMS_SENSOR_TYPE_TDS] = &TDSsensorread,
-	[EMS_SENSOR_TYPE_CO] = &COsensorread,
+	[EMS_SENSOR_TYPE_CO2] = &CO2SensorRead,
+  [EMS_SENSOR_TYPE_TDS] = &TDSSensorRead,
+	[EMS_SENSOR_TYPE_CO] = &COSensorRead,
 };
 
 struct EMS_DataPoint readSensor(const struct EMS_Sensor* s){
@@ -377,6 +387,7 @@ struct EMS_Sensor CO2sensor;
 struct EMS_Sensor TDSsensor;
 struct EMS_Sensor COsensor;
 struct EMS_Sensor MQ5sensor;
+struct EMS_Sensor OzoneSensor;
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -409,11 +420,20 @@ void setup(){
 	setSensorPin(&COsensor, EMS_PIN_CO_MAIN, A1, true);
 	registerDataSeries("COppm_init", EMS_DATA_TYPE_INT);
 
-  // MQ-5
-  MQ5sensor = createSensor(EMS_SENSOR_TYPE_MQ5);
-  setSensorPin(&MQ5sensor, EMS_PIN_MQ5_MAIN, A0, true);
-  registerDataSeries("MQ5ppm_int", EMS_DATA_TYPE_INT);
-  Ro = calibrateMQ5Sensor();
+	// MQ-5
+	MQ5sensor = createSensor(EMS_SENSOR_TYPE_MQ5);
+	setSensorPin(&MQ5sensor, EMS_PIN_MQ5_MAIN, A0, true);
+	registerDataSeries("MQ5ppm_int", EMS_DATA_TYPE_INT);
+	Ro = calibrateMQ5Sensor();
+
+	// Ozone
+	OzoneSensor = createSensor(EMS_SENSOR_TYPE_OZONE);
+	registerDataSeries("Ozoneppb_int", EMS_DATA_TYPE_INT);
+	while(!oz.begin(OZONE_ADDRESS_3)){
+		Serial.println("ozone addr error");
+		delay(500);
+	}
+	oz.SetModes(MEASURE_MODE_PASSIVE);
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -429,18 +449,22 @@ void loop(){
 	data = readSensor(&CO2sensor);
 	addDataPointToSeries("CO2ppm_int", &data);
 
-  // TDS
-  data = readSensor(&TDSsensor);
-  addDataPointToSeries("TDSppm_int", &data);
+	// TDS
+	data = readSensor(&TDSsensor);
+	addDataPointToSeries("TDSppm_int", &data);
 	
 	// CO
 	data = readSensor(&COsensor);
 	addDataPointToSeries("COppm_int", &data);
   
-  // MQ-5
-  data = readSensor(&MQ5sensor);
-  addDataPointToSeries("MQ5ppm_int", &data);
-	
+	// MQ-5
+	data = readSensor(&MQ5sensor);
+	addDataPointToSeries("MQ5ppm_int", &data);
+
+	// OZONE
+	data = readSensor(&OzoneSensor);
+	addDataPointToSeries("Ozoneppb_int", &data);
+
 	printAllData();
 	
 	delay(DELTA_MS);
