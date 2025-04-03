@@ -253,7 +253,7 @@ bool addDataPointToSeries(const char* series, struct EMS_DataPoint* data){
 	s->array[s->arrayLen - 1] = *data;
 	return true;
 }
-
+static char buff[200];
 void printAllData(void){
 	struct EMS_DataSeries* s = seriesHead;
 	while(s){
@@ -261,12 +261,14 @@ void printAllData(void){
 		if(s->type == EMS_DATA_TYPE_INT){
 			//puts("ints");
 			for(size_t idx = 0; idx < s->arrayLen; ++idx){
-				Serial.printf("%" PRId32 " @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataInt, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+        sprintf(buff, "%" PRId32 " @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataInt, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+        Serial.print(buff);
 			}
 		}else if(s->type == EMS_DATA_TYPE_FLOAT){
 			//puts("floats");
 			for(size_t idx = 0; idx < s->arrayLen; ++idx){
-				Serial.printf("%f @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataFloat, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+        sprintf(buff, "%f @ %" PRIu32 "\n", ((struct EMS_DataPoint*)s->array)[idx].dataFloat, ((struct EMS_DataPoint*)s->array)[idx].recordedTime);
+        Serial.print(buff);
 			}
 		}
 		s = s->next;
@@ -323,7 +325,7 @@ static void COSensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d, en
 }
 
 static void OzoneSensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d, enum EMS_READ_MODE){
-	int concentration = (int)oz.ReadOzoneData(20);
+	int concentration = (int)oz.readOzoneData(20);
 	d->dataInt = concentration;
 }
 
@@ -433,7 +435,7 @@ void setup(){
 		Serial.println("ozone addr error");
 		delay(500);
 	}
-	oz.SetModes(MEASURE_MODE_PASSIVE);
+	oz.setModes(MEASURE_MODE_PASSIVE);
 }
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
