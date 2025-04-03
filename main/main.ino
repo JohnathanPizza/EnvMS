@@ -204,32 +204,6 @@ bool registerDataSeries(const char* name, enum EMS_DATA_TYPE type){
 	return true;
 }
 
-bool addDataToSeries(const char* series, void* data, EMS_Time clk){
-	struct EMS_DataSeries* s = seriesHead;
-	while(s){
-		if(strcmp(s->name, series) == 0){
-			break;
-		}
-		s = s->next;
-	}
-	if(!s){
-		return false;
-	}
-	void* p = realloc(s->array, sizeof(struct EMS_DataPoint) * (++s->arrayLen));
-	if(!p){
-		puts("uhhhh");
-		return false;
-	}
-	s->array = (struct EMS_DataPoint*)p;
-	if(s->type == EMS_DATA_TYPE_INT){
-		s->array[s->arrayLen - 1].dataInt = *((EMS_Int*)data);
-	}else if(s->type == EMS_DATA_TYPE_FLOAT){
-		s->array[s->arrayLen - 1].dataFloat = *((EMS_Float*)data);
-	}
-	s->array[s->arrayLen - 1].recordedTime = clk;
-	return true;
-}
-
 bool addDataPointToSeries(const char* series, struct EMS_DataPoint* data){
 	struct EMS_DataSeries* s = seriesHead;
 	while(s){
