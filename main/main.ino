@@ -17,6 +17,7 @@
 #include <GravityTDS.h>
 #include "DFRobot_OzoneSensor.h"
 
+
 // MQ-5 Parameters
 #define RL 1000  // Load resistance in ohms (1kΩ)
 #define RO_CLEAN_AIR_FACTOR 6.5  // Clean air factor for MQ-5
@@ -72,6 +73,8 @@ enum EMS_SENSOR_TYPE{
 	EMS_SENSOR_TYPE_CO,
 	EMS_SENSOR_TYPE_MQ5,
 	EMS_SENSOR_TYPE_OZONE,
+	EMS_SENSOR_TYPE_TUR,
+
 };
 struct EMS_Sensor{
 	enum EMS_SENSOR_TYPE type;
@@ -106,6 +109,8 @@ enum EMS_PIN{
 	EMS_PIN_CO_MAIN = 1,
 
 	EMS_PIN_MQ5_MAIN = 1,
+
+	EMS_PIN_TUR_MAIN = 1,
 };
 
 enum EMS_READ_MODE{
@@ -119,6 +124,7 @@ EMS_OptionCount sensorOptionCount[] = {
 	[EMS_SENSOR_TYPE_CO] = 0,
 	[EMS_SENSOR_TYPE_MQ5] = 0,
 	[EMS_SENSOR_TYPE_OZONE] = 0,
+	[EMS_SENSOR_TYPE_TUR] = 0,
 };
 
 EMS_PinCount sensorPinCount[] = {
@@ -127,6 +133,7 @@ EMS_PinCount sensorPinCount[] = {
 	[EMS_SENSOR_TYPE_CO] = 1,
 	[EMS_SENSOR_TYPE_MQ5] = 1,
 	[EMS_SENSOR_TYPE_OZONE] = 1,
+	[EMS_SENSOR_TYPE_TUR] = 1,
 };
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -303,6 +310,8 @@ static void OzoneSensorRead(const struct EMS_Sensor* s, struct EMS_DataPoint* d,
 	d->dataInt = concentration;
 }
 
+
+
 // -------------------------------- MQ-5 sensor functions -----------------------------------
 // MQ-5 Sensor Calibrate Function
 float calibrateMQ5Sensor() {
@@ -333,6 +342,11 @@ static void MQ5sensorread(const struct EMS_Sensor* s, struct EMS_DataPoint* d, e
   
 	d->dataInt = ppm;
 }
+// -------------------------------- TURBIDITY sensor functions -----------------------------------
+
+
+
+
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -344,6 +358,7 @@ void (*readArray[])(const struct EMS_Sensor*, struct EMS_DataPoint*, enum EMS_RE
 	[EMS_SENSOR_TYPE_CO2] = &CO2SensorRead,
   [EMS_SENSOR_TYPE_TDS] = &TDSSensorRead,
 	[EMS_SENSOR_TYPE_CO] = &COSensorRead,
+	
 };
 
 struct EMS_DataPoint readSensor(const struct EMS_Sensor* s){
@@ -364,6 +379,7 @@ struct EMS_Sensor TDSsensor;
 struct EMS_Sensor COsensor;
 struct EMS_Sensor MQ5sensor;
 struct EMS_Sensor OzoneSensor;
+struct EMS_Sensor TURsensor;
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -410,7 +426,13 @@ void setup(){
 		delay(500);
 	}
 	oz.setModes(MEASURE_MODE_PASSIVE);
+
+
+	// Turbidty
+
 }
+
+
 
 //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -440,6 +462,9 @@ void loop(){
 	// OZONE
 	data = readSensor(&OzoneSensor);
 	addDataPointToSeries("Ozoneppb_int", &data);
+
+	// TUR
+	
 
 	printAllData();
 	
