@@ -1,0 +1,32 @@
+Muxes:
+A- D11
+B- D10
+C- D9
+
+1- D6
+Y3- C02 Sensor
+
+2- D8
+Y6- Methane sensor (digital)
+
+3- A2
+Y1- Turbidity sensor
+
+4- A0 
+Y0- pH sensor
+Y1- TDS sensor
+Y4- Sound sensor
+Y5- Humidity sensor
+Y6- Methane sensor (analog)
+Y7- Carbon Monoxide sensor
+
+Individual Connections (all digital)
+
+D2- Particulate Matter sensor
+D3- Particulate Matter sensor
+
+D18- O3 sensor
+D19- O3 sensor
+
+D0/RX- GPS
+D1/TX- GPS
